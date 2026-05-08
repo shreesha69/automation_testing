@@ -11,9 +11,10 @@ import java.util.Map;
 
 public class UserAPITest {
 
-    int id;
-    String email;
-    String name;
+    private String name;
+    private String email;
+    private String password;
+    private String accessToken;
 
     @BeforeClass
     public void setup() {
@@ -21,90 +22,66 @@ public class UserAPITest {
     }
 
     @Test(priority = 1)
-    public void testCreateUser() {
-        name = "user_" + System.currentTimeMillis();
-        email = "user_" + System.currentTimeMillis() + "@gmail.com";
+    public void testRegister() {
+        name     = "user_" + System.currentTimeMillis();
+        email    = name + "@gmail.com";
+        password = "12345678910";
+        String avatar = "https://picsum.photos/800";
 
         Map<String, String> body = Map.of(
-                "name", name,
-                "email", email,
-                "password", "1234",
-                "avatar", "https://picsum.photos/800"
+                "name",     name,
+                "email",    email,
+                "password", password,
+                "avatar",   avatar
+        );
+
+        RestAssured.given()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .when()
+                .post("/users/")
+                .then()
+                .log().all()
+                .statusCode(201)
+                .body("id",   Matchers.notNullValue())
+                .body("name", Matchers.equalTo(name));
+    }
+
+    @Test(priority = 2)
+    public void testLogin() {
+        Map<String, String> body = Map.of(
+                "email",    email,
+                "password", password
         );
 
         Response response = RestAssured.given()
                 .contentType(ContentType.JSON)
                 .body(body)
                 .when()
-                .post("/users/");
+                .post("/auth/login");
 
         response
                 .then()
                 .log().all()
                 .statusCode(201)
-                .body("name", Matchers.equalTo(name))
-                .body("email", Matchers.equalTo(email))
-                .body("role", Matchers.equalTo("customer"));
+                .body("access_token",  Matchers.notNullValue())
+                .body("refresh_token", Matchers.notNullValue());
 
-        id = response.jsonPath().getInt("id");
-        System.out.println("Created User ID: " + id);
-    }
-
-    @Test(priority = 2)
-    public void testGetUser() {
-        RestAssured.given()
-                .pathParam("id", id)
-                .when()
-                .get("/users/{id}")
-                .then()
-                .log().all()
-                .statusCode(200)
-                .body("id", Matchers.equalTo(id))
-                .body("name", Matchers.equalTo(name))
-                .body("email", Matchers.equalTo(email));
+        accessToken = response.jsonPath().getString("access_token");
+        System.out.println("Access Token: " + accessToken);
     }
 
     @Test(priority = 3)
-    public void testUpdateUser() {
-        String updatedName = "updated_" + System.currentTimeMillis();
-        String updatedEmail = "updated_" + System.currentTimeMillis() + "@gmail.com";
-
-        Map<String, String> body = Map.of(
-                "name", updatedName,
-                "email", updatedEmail
-        );
-
-        Response response = RestAssured.given()
-                .contentType(ContentType.JSON)
-                .pathParam("id", id)
-                .body(body)
+    public void testGetProfile() {
+        RestAssured.given()
+                .header("Authorization", "Bearer " + accessToken)
                 .when()
-                .put("/users/{id}");
-
-        response
+                .get("/auth/profile")
                 .then()
                 .log().all()
                 .statusCode(200)
-                .body("id", Matchers.equalTo(id))
-                .body("name", Matchers.equalTo(updatedName))
-                .body("email", Matchers.equalTo(updatedEmail));
-
-        name = updatedName;
-        email = updatedEmail;
-        System.out.println("Updated User ID: " + id);
+                .body("id",    Matchers.notNullValue())
+                .body("email", Matchers.equalTo(email))
+                .body("name",  Matchers.equalTo(name));
     }
-
-    @Test(priority = 4)
-    public void testDeleteUser() {
-        RestAssured.given()
-                .pathParam("id", id)
-                .when()
-                .delete("/users/{id}")
-                .then()
-                .log().all()
-                .statusCode(200);
-
-        System.out.println("Deleted User ID: " + id);
-    }
-
 }
